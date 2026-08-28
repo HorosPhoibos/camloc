@@ -335,7 +335,7 @@
             const url = URL.createObjectURL(capturedBlob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `GeoCam_${Date.now()}.jpg`;
+            a.download = `M6Cam_${Date.now()}.jpg`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -346,11 +346,11 @@
         // 6. Share Photo
         shareBtn.addEventListener('click', async () => {
             if (!capturedBlob) return;
-            const file = new File([capturedBlob], `GeoCam_${Date.now()}.jpg`, { type: "image/jpeg" });
+            const file = new File([capturedBlob], `M6Cam_${Date.now()}.jpg`, { type: "image/jpeg" });
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 try {
-                    await navigator.share({ title: 'Foto GeoCam', files: [file] });
+                    await navigator.share({ title: 'Foto M6Cam', files: [file] });
                 } catch (err) { console.log("Share failed:", err); }
             } else {
                 alert("Browser ini tidak mendukung fitur Share langsung. Silakan gunakan tombol Save.");
