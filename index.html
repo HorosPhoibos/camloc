@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>M6Cam - Audit Cam (V1.3)</title>
+    <title>M6Cam - Audit Cam (V1.4)</title>
     <style>
         body {
             margin: 0;
@@ -59,15 +59,15 @@
             width: 100%;
             box-sizing: border-box;
             background-color: rgba(0, 0, 0, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.4);
             color: white;
-            padding: 12px 40px 12px 15px; /* Padding kanan lebih besar untuk tempat tombol X */
+            padding: 12px 45px 12px 15px; /* Jarak kanan lebih lebar untuk tombol X */
             border-radius: 8px;
             font-size: 16px;
             font-family: inherit;
             backdrop-filter: blur(4px);
             outline: none;
-            transition: border-color 0.2s;
+            transition: border-color 0.2s, background-color 0.2s;
         }
 
         #item-input::placeholder {
@@ -79,25 +79,27 @@
             background-color: rgba(0, 0, 0, 0.8);
         }
 
-        /* Tombol Clear 'X' */
+        /* Tombol Clear 'X' - SEKARANG SELALU TAMPIL */
         #clear-btn {
             position: absolute;
             right: 10px;
-            background: transparent;
+            background: rgba(255, 255, 255, 0.2);
             border: none;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 22px;
+            color: white;
+            font-size: 16px;
             cursor: pointer;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             padding: 0;
-            display: none; /* Disembunyikan secara default */
-            line-height: 1;
-            width: auto;
-            border-radius: 0;
-            font-weight: normal;
+            transition: background 0.2s;
         }
 
-        #clear-btn:hover {
-            color: white;
+        #clear-btn:active {
+            background: rgba(255, 255, 255, 0.4);
         }
 
         .controls {
@@ -128,7 +130,6 @@
             outline: 3px solid #ffffff;
             padding: 0;
             cursor: pointer;
-            transition: all 0.2s ease;
         }
 
         #capture-btn:active { background-color: #e0e0e0; transform: scale(0.95); }
@@ -148,33 +149,35 @@
         
         #status-text {
             position: absolute;
-            top: 10px;
+            top: -25px; /* Dipindah agak ke atas luar video biar ga ketutup */
             font-size: 13px;
             color: #888;
             letter-spacing: 0.5px;
             text-align: center;
-            padding: 0 20px;
-            z-index: 5;
+            width: 100%;
         }
     </style>
 </head>
 <body>
 
-    <div id="status-text">Mencari lokasi & kamera...</div>
-
-    <!-- Live Camera Feed -->
-    <div id="camera-container">
-        <!-- Input Wrapper untuk Nama Barang dan Tombol X -->
-        <div id="input-wrapper">
-            <input type="text" id="item-input" placeholder="UNIT ID / Nama Barang..." autocomplete="off">
-            <button id="clear-btn" aria-label="Clear text">&times;</button>
+    <div style="position: relative; width: 100%; max-width: 500px; display: flex; flex-direction: column; align-items: center;">
+        <div id="status-text">Mencari lokasi & kamera...</div>
+        
+        <!-- Live Camera Feed -->
+        <div id="camera-container">
+            <!-- Input Wrapper -->
+            <div id="input-wrapper">
+                <input type="text" id="item-input" placeholder="UNIT ID / Nama Barang..." autocomplete="off">
+                <!-- Tombol X bulat di dalam kotak teks -->
+                <button id="clear-btn" aria-label="Clear text">&#x2715;</button>
+            </div>
+            <video id="video" autoplay playsinline></video>
         </div>
-        <video id="video" autoplay playsinline></video>
-    </div>
 
-    <!-- Captured Image Preview -->
-    <div id="preview-container">
-        <canvas id="canvas"></canvas>
+        <!-- Captured Image Preview -->
+        <div id="preview-container">
+            <canvas id="canvas"></canvas>
+        </div>
     </div>
 
     <!-- Buttons -->
@@ -205,18 +208,9 @@
         let capturedBlob = null;
 
         // --- Fitur Hapus Cepat (Clear Input) ---
-        itemInput.addEventListener('input', () => {
-            if (itemInput.value.length > 0) {
-                clearBtn.style.display = 'block';
-            } else {
-                clearBtn.style.display = 'none';
-            }
-        });
-
         clearBtn.addEventListener('click', () => {
             itemInput.value = '';
-            clearBtn.style.display = 'none';
-            itemInput.focus(); // Mengembalikan kursor ke kotak input
+            itemInput.focus(); // Langsung siap ngetik lagi setelah dihapus
         });
 
         // 1. Dapatkan Lokasi GPS dan ubah ke Alamat
@@ -352,7 +346,6 @@
             // Sembunyikan UI
             cameraContainer.style.display = 'none';
             captureBtn.style.display = 'none';
-            statusText.style.display = 'none';
             
             previewContainer.style.display = 'flex';
             retakeBtn.style.display = 'block';
@@ -371,7 +364,6 @@
             
             cameraContainer.style.display = 'flex';
             captureBtn.style.display = 'block';
-            statusText.style.display = 'block';
             capturedBlob = null;
         });
 
