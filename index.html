@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JoeCam - Save & Share (V1.0)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #121212;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #camera-container, #preview-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            height: 70vh;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        video, canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #preview-container {
+            display: none;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 50px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        #capture-btn {
+            background-color: #ffffff;
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            border: 4px solid #121212;
+            outline: 3px solid #ffffff;
+            padding: 0;
+        }
+
+        #capture-btn:active { background-color: #e0e0e0; transform: scale(0.95); }
+
+        .action-btn {
+            background-color: #ffffff;
+            color: #121212;
+            display: none;
+        }
+
+        .action-btn.secondary { 
+            background-color: #333333; 
+            color: #ffffff;
+        }
+        
+        .action-btn:active { transform: scale(0.95); }
+        
+        #status-text {
+            position: absolute;
+            top: 15px;
+            font-size: 13px;
+            color: #888;
+            letter-spacing: 0.5px;
+            text-align: center;
+            padding: 0 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="status-text">Requesting camera & location...</div>
+
+    <!-- Live Camera Feed -->
+    <div id="camera-container">
+        <video id="video" autoplay playsinline></video>
+    </div>
+
+    <!-- Captured Image Preview -->
+    <div id="preview-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <!-- Buttons -->
+    <div class="controls">
+        <button id="capture-btn"></button>
+        <button id="retake-btn" class="action-btn secondary">Retake</button>
+        <button id="save-btn" class="action-btn">Save</button>
+        <button id="share-btn" class="action-btn">Share</button>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const captureBtn = document.getElementById('capture-btn');
+        const shareBtn = document.getElementById('share-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const retakeBtn = document.getElementById('retake-btn');
+        
+        const cameraContainer = document.getElementById('camera-container');
+        const previewContainer = document.getElementById('preview-container');
+        const statusText = document.getElementById('status-text');
+
+        let currentLocation = "Finding location...";
+        let capturedBlob = null;
+
+        // 1. Get GPS Location and convert to Address
+        navigator.geolocation.getCurrentPosition(
+            (pos) => { 
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                
+                currentLocation = `${lat.toFixed(4)}, ${lon.toFixed(4)}`; 
+                statusText.innerText = "Finding street address...";
+
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.address) {
+                            const addr = data.address;
+                            const street = addr.road || addr.pedestrian || addr.suburb || "";
+                            const city = addr.city || addr.town || addr.village || addr.county || "";
+                            
+                            let readableAddress = [];
+                            if(street) readableAddress.push(street);
+                            if(city) readableAddress.push(city);
+                            
+                            if(readableAddress.length > 0) {
+                                currentLocation = readableAddress.join(', ');
+                            }
+                        }
+                        statusText.innerText = "";
+                    })
+                    .catch(err => {
+                        console.error("Geocoding error:", err);
+                        statusText.innerText = ""; 
+                    });
+            },
+            (err) => { 
+                console.warn("Location error:", err);
+                statusText.innerText = "Location disabled";
+                currentLocation = "Location unavailable";
+            }
+        );
+
+        // 2. Start Camera
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                statusText.innerText = "Camera access denied.";
+                console.error(err);
+            });
+
+        // 3. Capture Photo
+        captureBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const baseFontSize = Math.max(16, Math.floor(canvas.width / 45)); 
+            const padding = baseFontSize * 2;
+
+            // Dark gradient
+            const gradientHeight = baseFontSize * 8;
+            const gradient = ctx.createLinearGradient(0, canvas.height - gradientHeight, 0, canvas.height);
+            gradient.addColorStop(0, 'rgba(0,0,0,0)');
+            gradient.addColorStop(0.4, 'rgba(0,0,0,0.4)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0.8)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, canvas.height - gradientHeight, canvas.width, gradientHeight);
+
+            // Time & Date
+            const now = new Date();
+            const dateStr = now.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+            const timeStr = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+            ctx.textAlign = "left";
+            ctx.textBaseline = "bottom";
+
+            // Draw Time
+            ctx.fillStyle = "#ffffff";
+            ctx.font = `bold ${baseFontSize * 1.8}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+            ctx.fillText(timeStr, padding, canvas.height - padding - (baseFontSize * 2.5));
+
+            // Draw Date
+            ctx.font = `500 ${baseFontSize * 1.1}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+            ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+            ctx.fillText(dateStr, padding, canvas.height - padding - (baseFontSize * 1));
+
+            // Draw Location
+            ctx.font = `400 ${baseFontSize * 0.9}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+            ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+            
+            let displayLocation = currentLocation;
+            const maxTextWidth = canvas.width - (padding * 2);
+            if (ctx.measureText(displayLocation).width > maxTextWidth) {
+                while (ctx.measureText(displayLocation + "...").width > maxTextWidth && displayLocation.length > 0) {
+                    displayLocation = displayLocation.slice(0, -1);
+                }
+                displayLocation += "...";
+            }
+            
+            ctx.fillText(displayLocation, padding, canvas.height - padding);
+
+            // Switch UI
+            cameraContainer.style.display = 'none';
+            captureBtn.style.display = 'none';
+            
+            previewContainer.style.display = 'flex';
+            retakeBtn.style.display = 'block';
+            saveBtn.style.display = 'block';
+            shareBtn.style.display = 'block';
+
+            canvas.toBlob((blob) => { capturedBlob = blob; }, 'image/jpeg', 0.95);
+        });
+
+        // 4. Retake Photo
+        retakeBtn.addEventListener('click', () => {
+            previewContainer.style.display = 'none';
+            retakeBtn.style.display = 'none';
+            saveBtn.style.display = 'none';
+            shareBtn.style.display = 'none';
+            
+            cameraContainer.style.display = 'flex';
+            captureBtn.style.display = 'block';
+            capturedBlob = null;
+        });
+
+        // 5. Save Photo to Gallery/Downloads
+        saveBtn.addEventListener('click', () => {
+            if (!capturedBlob) return;
+            
+            // Create a temporary link to download the image
+            const url = URL.createObjectURL(capturedBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Aesthetic_Snap_${Date.now()}.jpg`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Clean up memory
+            URL.revokeObjectURL(url);
+        });
+
+        // 6. Share Photo
+        shareBtn.addEventListener('click', async () => {
+            if (!capturedBlob) return;
+            const file = new File([capturedBlob], `Aesthetic_Snap_${Date.now()}.jpg`, { type: "image/jpeg" });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({ title: 'Photo capture', files: [file] });
+                } catch (err) { console.log("Share failed:", err); }
+            } else {
+                alert("Sharing files isn't supported on this browser. Try using the Save button instead.");
+            }
+        });
+    </script>
+</body>
+</html>
